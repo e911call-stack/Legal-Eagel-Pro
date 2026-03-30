@@ -12,6 +12,7 @@ import { mockUser } from '@/lib/mock-data';
 import { cn } from '@/lib/utils';
 import { useI18n, LanguageSwitcher } from '@/lib/i18n';
 import { useAuth } from '@/lib/auth-context';
+import { PWAInstallBanner } from '@/components/PWAInstallBanner';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname   = usePathname();
@@ -179,6 +180,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <main className="flex-1 overflow-y-auto" style={{ background: '#f5f4f0' }}>
           {children}
         </main>
+        <PWAInstallBanner />
       </div>
     </div>
   );

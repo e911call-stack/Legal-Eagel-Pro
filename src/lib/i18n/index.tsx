@@ -22,7 +22,6 @@ export const LOCALES: {
 
 const TRANSLATIONS: Record<Locale, Translations> = { en, es, zh, ar, hi };
 
-// ─── Context ──────────────────────────────────────────────────
 interface I18nContextValue {
   locale: Locale;
   t: Translations;
@@ -31,16 +30,16 @@ interface I18nContextValue {
 }
 
 const I18nContext = createContext<I18nContextValue>({
-  locale: 'en',
-  t: en,
-  setLocale: () => {},
-  dir: 'ltr',
+  locale: 'en', t: en, setLocale: () => {}, dir: 'ltr',
 });
 
-// ─── Provider ─────────────────────────────────────────────────
+// ─── Provider ─────────────────────────────────────────────────────────────────
 export function I18nProvider({ children }: { children: React.ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>('en');
+  // Debounce timer ref so we don't hammer the API on rapid switches
+  const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Load saved locale from localStorage on mount
   useEffect(() => {
     try {
       const saved = localStorage.getItem('le_locale') as Locale | null;
@@ -48,6 +47,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     } catch {}
   }, []);
 
+  // Apply dir + lang attrs to <html> on every locale change
   useEffect(() => {
     const info = LOCALES.find(l => l.code === locale)!;
     document.documentElement.setAttribute('lang', locale);
@@ -56,7 +56,23 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
 
   const setLocale = useCallback((newLocale: Locale) => {
     setLocaleState(newLocale);
+
+    // 1. Always persist to localStorage immediately (works without DB)
     try { localStorage.setItem('le_locale', newLocale); } catch {}
+
+    // 2. Debounce DB write — fire 800 ms after the last change
+    if (persistTimer.current) clearTimeout(persistTimer.current);
+    persistTimer.current = setTimeout(async () => {
+      try {
+        await fetch('/api/profile', {
+          method:  'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ language: newLocale }),
+        });
+      } catch {
+        // Silently ignore network errors — localStorage is the fallback
+      }
+    }, 800);
   }, []);
 
   const dir = LOCALES.find(l => l.code === locale)?.dir ?? 'ltr';
@@ -68,38 +84,31 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-// ─── Hook ─────────────────────────────────────────────────────
 export function useI18n() {
   return useContext(I18nContext);
 }
 
-// ─── Language Switcher ─────────────────────────────────────────
-// Uses position:fixed + getBoundingClientRect so the dropdown
-// escapes any parent with overflow:hidden (e.g. the sidebar).
+// ─── Language Switcher ─────────────────────────────────────────────────────────
 export function LanguageSwitcher({ compact = false }: { compact?: boolean }) {
   const { locale, setLocale } = useI18n();
-  const [open, setOpen] = useState(false);
-  // Coordinates for the fixed-position dropdown
-  const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 0, openUp: false });
+  const [open, setOpen]     = useState(false);
+  const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 0 });
   const btnRef = useRef<HTMLButtonElement>(null);
   const current = LOCALES.find(l => l.code === locale)!;
-
-  // Dropdown height estimate: 5 options × 36px each + 8px padding
-  const DROPDOWN_H = 5 * 36 + 8;
+  const DROPDOWN_H = 5 * 36 + 32;
 
   function handleOpen() {
     if (!open && btnRef.current) {
-      const rect = btnRef.current.getBoundingClientRect();
-      const spaceBelow = window.innerHeight - rect.bottom;
+      const r = btnRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - r.bottom;
       const openUp = spaceBelow < DROPDOWN_H + 8;
       setDropPos({
-        top:    openUp ? rect.top - DROPDOWN_H - 4 : rect.bottom + 4,
-        left:   rect.left,
-        width:  Math.max(rect.width, 160),
-        openUp,
+        top:   openUp ? r.top - DROPDOWN_H - 4 : r.bottom + 4,
+        left:  r.left,
+        width: Math.max(r.width, 164),
       });
     }
-    setOpen(prev => !prev);
+    setOpen(p => !p);
   }
 
   function pick(code: Locale) {
@@ -107,7 +116,6 @@ export function LanguageSwitcher({ compact = false }: { compact?: boolean }) {
     setOpen(false);
   }
 
-  // Close on scroll / resize so position doesn't go stale
   useEffect(() => {
     if (!open) return;
     const close = () => setOpen(false);
@@ -121,74 +129,36 @@ export function LanguageSwitcher({ compact = false }: { compact?: boolean }) {
 
   return (
     <>
-      <button
-        ref={btnRef}
-        onClick={handleOpen}
-        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-white/10 bg-white/5 text-xs text-slate-300 hover:bg-white/10 hover:text-white transition-all duration-200 font-medium w-full"
-        style={{ minWidth: 0 }}
-      >
+      <button ref={btnRef} onClick={handleOpen}
+        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-white/10 bg-white/5 text-xs text-slate-300 hover:bg-white/10 hover:text-white transition-all duration-200 font-medium w-full">
         <span className="text-base leading-none">{current.flag}</span>
-        {!compact && (
-          <span className="flex-1 text-left truncate">{current.native}</span>
-        )}
-        <span
-          className="text-slate-500 transition-transform duration-200 text-[10px]"
-          style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}
-        >
-          ▾
-        </span>
+        {!compact && <span className="flex-1 text-left truncate">{current.native}</span>}
+        <span className="text-slate-500 text-[10px] transition-transform duration-200"
+          style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}>▾</span>
       </button>
 
       {open && (
         <>
-          {/* Backdrop — catches outside clicks */}
-          <div
-            className="fixed inset-0"
-            style={{ zIndex: 9998 }}
-            onClick={() => setOpen(false)}
-          />
-
-          {/* Dropdown — fixed to viewport, escapes sidebar overflow */}
-          <div
-            style={{
-              position: 'fixed',
-              top:      dropPos.top,
-              left:     dropPos.left,
-              minWidth: dropPos.width,
-              zIndex:   9999,
-            }}
-            className="bg-white border border-stone-200 rounded-xl shadow-2xl overflow-hidden"
-          >
-            {/* Header label */}
+          <div className="fixed inset-0" style={{ zIndex: 9998 }} onClick={() => setOpen(false)} />
+          <div style={{ position: 'fixed', top: dropPos.top, left: dropPos.left, minWidth: dropPos.width, zIndex: 9999 }}
+            className="bg-white border border-stone-200 rounded-xl shadow-2xl overflow-hidden">
             <div className="px-3 pt-2 pb-1 border-b border-stone-100">
-              <span className="text-[9px] text-stone-400 font-semibold uppercase tracking-widest">
-                Language
-              </span>
+              <span className="text-[9px] text-stone-400 font-semibold uppercase tracking-widest">Language</span>
             </div>
-
             {LOCALES.map(l => (
-              <button
-                key={l.code}
-                onClick={() => pick(l.code)}
-                className={`
-                  w-full text-left px-3 py-2.5 text-xs flex items-center gap-2.5
-                  transition-colors duration-150
-                  ${l.code === locale
+              <button key={l.code} onClick={() => pick(l.code)}
+                className={`w-full text-left px-3 py-2.5 text-xs flex items-center gap-2.5 transition-colors duration-150 ${
+                  l.code === locale
                     ? 'bg-amber-50 text-amber-700 font-semibold'
-                    : 'text-stone-600 hover:bg-stone-50 hover:text-stone-900'}
-                `}
-              >
+                    : 'text-stone-600 hover:bg-stone-50 hover:text-stone-900'
+                }`}>
                 <span className="text-base leading-none w-5 text-center">{l.flag}</span>
                 <span className="flex-1">{l.native}</span>
                 <span className="text-stone-400 text-[10px] font-medium">{l.label}</span>
                 {l.dir === 'rtl' && (
-                  <span className="text-[8px] text-amber-600 border border-amber-300 bg-amber-50 px-1 py-0.5 rounded font-bold">
-                    RTL
-                  </span>
+                  <span className="text-[8px] text-amber-600 border border-amber-300 bg-amber-50 px-1 py-0.5 rounded font-bold">RTL</span>
                 )}
-                {l.code === locale && (
-                  <span className="text-amber-500 text-[10px]">✓</span>
-                )}
+                {l.code === locale && <span className="text-amber-500 text-[10px]">✓</span>}
               </button>
             ))}
           </div>

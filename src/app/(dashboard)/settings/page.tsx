@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 import { useI18n } from '@/lib/i18n';
 
 export default function SettingsPage() {
-  const { t } = useI18n();
+  const { t, locale, setLocale } = useI18n();
   const [tab, setTab]     = useState(0);
   const [saved, setSaved] = useState(false);
 
@@ -158,17 +158,20 @@ export default function SettingsPage() {
                   <label className="block text-xs text-stone-500 mb-3 font-semibold uppercase tracking-wide">{t.settingsPage.interfaceLanguage}</label>
                   <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                     {[
-                      { code: 'en', label: '🇺🇸 EN' },
-                      { code: 'es', label: '🇪🇸 ES' },
+                      { code: 'en', label: '🇺🇸 EN'   },
+                      { code: 'es', label: '🇪🇸 ES'   },
                       { code: 'zh', label: '🇨🇳 中文' },
                       { code: 'ar', label: '🇸🇦 عربي' },
                       { code: 'hi', label: '🇮🇳 हिंदी' },
                     ].map(l => (
                       <button key={l.code}
-                        className={cn('py-2.5 rounded-xl border-2 text-sm font-semibold transition-all duration-200',
-                          l.code === 'en'
+                        onClick={() => setLocale(l.code as import('@/lib/i18n').Locale)}
+                        className={cn(
+                          'py-2.5 rounded-xl border-2 text-sm font-semibold transition-all duration-200',
+                          l.code === locale
                             ? 'border-amber-400 bg-amber-50 text-amber-700'
-                            : 'border-stone-200 text-stone-500 hover:border-stone-300')}>
+                            : 'border-stone-200 text-stone-500 hover:border-stone-300 hover:text-stone-700'
+                        )}>
                         {l.label}
                       </button>
                     ))}
