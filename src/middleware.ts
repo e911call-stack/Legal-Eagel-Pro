@@ -2,22 +2,40 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-// ─── Routes that never require auth ───────────────────────────
 const PUBLIC_ROUTES = ['/login', '/onboarding', '/auth/callback'];
+
+// Cookie name for demo-mode sessions (no real Supabase session needed)
+const DEMO_COOKIE = 'le_demo_role';
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Always allow public routes and static files
+  // ── Always pass through: public, static, API auth routes ──────────────────
   if (
     PUBLIC_ROUTES.some(r => pathname.startsWith(r)) ||
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api/auth') ||
+    pathname.startsWith('/api/ai') ||
     pathname.includes('.')
   ) {
     return NextResponse.next();
   }
 
+  // ── Demo mode fast-path ────────────────────────────────────────────────────
+  // If a demo role cookie exists, skip Supabase entirely and route by role.
+  const demoRole = request.cookies.get(DEMO_COOKIE)?.value;
+  if (demoRole) {
+    // Cross-portal guard: clients can't access lawyer routes and vice-versa
+    if (demoRole === 'client' && !pathname.startsWith('/portal')) {
+      return NextResponse.redirect(new URL('/portal/dashboard', request.url));
+    }
+    if (demoRole !== 'client' && pathname.startsWith('/portal')) {
+      return NextResponse.redirect(new URL('/dashboard', request.url));
+    }
+    return NextResponse.next();
+  }
+
+  // ── Real Supabase session check ────────────────────────────────────────────
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -40,18 +58,15 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  // Refresh session — keeps it alive on navigation
   const { data: { session } } = await supabase.auth.getSession();
 
-  // ── Not logged in → redirect to login ─────────────────────
   if (!session) {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('redirectTo', pathname);
     return NextResponse.redirect(loginUrl);
   }
 
-  // ── Role-based route protection ────────────────────────────
-  // Fetch role from users table
+  // Role-based routing for real Supabase users
   const { data: profile } = await supabase
     .from('users')
     .select('role')
@@ -60,15 +75,9 @@ export async function middleware(request: NextRequest) {
 
   const role = profile?.role ?? 'client';
 
-  // Clients trying to access lawyer/admin routes → redirect to client portal
-  if (role === 'client' && pathname.startsWith('/dashboard')) {
-    return NextResponse.redirect(new URL('/portal/dashboard', request.url));
-  }
   if (role === 'client' && !pathname.startsWith('/portal')) {
     return NextResponse.redirect(new URL('/portal/dashboard', request.url));
   }
-
-  // Lawyers/admins trying to access client portal → redirect to firm dashboard
   if (role !== 'client' && pathname.startsWith('/portal')) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
@@ -77,7 +86,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|public).*)',
-  ],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|public).*)'],
 };

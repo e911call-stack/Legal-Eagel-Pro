@@ -8,14 +8,14 @@ import { useI18n, LanguageSwitcher } from '@/lib/i18n';
 import { useAuth } from '@/lib/auth-context';
 
 export default function LoginPage() {
-  const router  = useRouter();
-  const { t }   = useI18n();
+  const router = useRouter();
+  const { t }  = useI18n();
   const { signIn, signInWithMagicLink } = useAuth();
 
   const [email, setEmail]         = useState('');
   const [password, setPassword]   = useState('');
   const [showPass, setShowPass]   = useState(false);
-  const [loading, setLoading]     = useState(false);
+  const [submitting, setSubmitting] = useState(false); // local form spinner only
   const [mode, setMode]           = useState<'login' | 'magic'>('login');
   const [magicSent, setMagicSent] = useState(false);
   const [error, setError]         = useState<string | null>(null);
@@ -23,29 +23,34 @@ export default function LoginPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    setLoading(true);
+    setSubmitting(true);
 
     if (mode === 'magic') {
       const { error: err } = await signInWithMagicLink(email);
-      if (err) { setError(err); setLoading(false); return; }
-      // Demo magic link → redirect immediately
-      const isDemoEmail = email.endsWith('@demo.com');
-      if (isDemoEmail) {
+      setSubmitting(false);
+      if (err) { setError(err); return; }
+      // Demo magic link → navigate immediately
+      if (email.endsWith('@demo.com')) {
         router.push(email.includes('client') ? '/portal/dashboard' : '/dashboard');
-        return;
+      } else {
+        setMagicSent(true);
       }
-      setMagicSent(true);
-      setLoading(false);
       return;
     }
 
+    // Password login
     const { error: err } = await signIn(email, password);
     if (err) {
       setError(t.auth.errorInvalidCredentials);
-      setLoading(false);
+      setSubmitting(false);
       return;
     }
-    router.push(email.includes('client') ? '/portal/dashboard' : '/dashboard');
+
+    // signIn succeeded — navigate based on email role hint
+    // The middleware will enforce the real role-based guard on server side
+    const dest = email.includes('client') ? '/portal/dashboard' : '/dashboard';
+    router.push(dest);
+    // Keep submitting=true until navigation completes (looks intentional)
   }
 
   function quickLogin(role: 'lawyer' | 'client' | 'admin') {
@@ -56,6 +61,7 @@ export default function LoginPage() {
     setError(null);
   }
 
+  // ── Magic link sent screen ─────────────────────────────────────────────────
   if (magicSent) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6" style={{ background: '#f5f4f0' }}>
@@ -68,7 +74,7 @@ export default function LoginPage() {
           <p className="text-stone-500 text-sm mb-1">{t.auth.checkInboxDesc}</p>
           <p className="font-semibold text-stone-800 text-sm mb-4">{email}</p>
           <p className="text-stone-400 text-xs mb-6">{t.auth.checkInboxSub}</p>
-          <button onClick={() => { setMagicSent(false); setLoading(false); }}
+          <button onClick={() => { setMagicSent(false); setSubmitting(false); }}
             className="text-xs text-amber-600 hover:text-amber-700 font-semibold transition-colors">
             {t.auth.useDifferentEmail}
           </button>
@@ -77,14 +83,15 @@ export default function LoginPage() {
     );
   }
 
+  // ── Main login ─────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen flex" style={{ background: '#f5f4f0' }}>
 
-      {/* ── Left / Form panel ─────────────────────────────────────────────── */}
-      <div className="w-full lg:w-[48%] flex items-center justify-center p-6 lg:p-12 bg-white order-2 lg:order-1">
+      {/* Form panel */}
+      <div className="w-full lg:w-[48%] flex items-center justify-center p-6 lg:p-12 bg-white">
         <div className="w-full max-w-md animate-fade-in">
 
-          {/* Mobile logo + Language switcher (always visible on form panel) */}
+          {/* Logo row + language switcher (always visible) */}
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center">
@@ -93,8 +100,7 @@ export default function LoginPage() {
               <span style={{ fontFamily: "'Cormorant Garamond', Georgia, serif" }}
                 className="text-xl font-semibold text-stone-900 lg:hidden">Legal Eagle</span>
             </div>
-            {/* Language switcher — ALWAYS visible here, every screen size */}
-            <div className="relative z-50">
+            <div className="relative" style={{ zIndex: 9999 }}>
               <LanguageSwitcher />
             </div>
           </div>
@@ -105,10 +111,11 @@ export default function LoginPage() {
             <p className="text-stone-500 text-sm">{t.auth.signInSubtitle}</p>
           </div>
 
-          {/* Mode toggle */}
+          {/* Password / Magic link toggle */}
           <div className="flex bg-stone-100 rounded-xl p-1 mb-5 border border-stone-200">
             {(['login', 'magic'] as const).map(m => (
-              <button key={m} onClick={() => { setMode(m); setError(null); }}
+              <button key={m} type="button"
+                onClick={() => { setMode(m); setError(null); }}
                 className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all duration-200 flex items-center justify-center gap-1.5 ${
                   mode === m
                     ? 'bg-white shadow-sm text-stone-800 border border-stone-200'
@@ -120,7 +127,7 @@ export default function LoginPage() {
             ))}
           </div>
 
-          {/* Error banner — fully translated */}
+          {/* Error */}
           {error && (
             <div className="flex items-start gap-2.5 bg-red-50 border border-red-200 rounded-xl p-3 mb-4 animate-slide-up">
               <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
@@ -128,6 +135,7 @@ export default function LoginPage() {
             </div>
           )}
 
+          {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs text-stone-500 mb-1.5 font-semibold uppercase tracking-wide">
@@ -152,7 +160,8 @@ export default function LoginPage() {
                     type={showPass ? 'text' : 'password'}
                     value={password} onChange={e => setPassword(e.target.value)}
                     placeholder={t.auth.passwordPlaceholder}
-                    className="input-field pl-9 pr-9" autoComplete="current-password" />
+                    className="input-field pl-9 pr-9"
+                    autoComplete="current-password" />
                   <button type="button" onClick={() => setShowPass(!showPass)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600">
                     {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -166,25 +175,25 @@ export default function LoginPage() {
               </div>
             )}
 
-            <button type="submit" disabled={loading}
-              className="w-full btn-primary py-2.5 justify-center mt-1 disabled:opacity-60">
-              {loading
-                ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    {mode === 'magic' ? t.auth.sendingLink : t.auth.signingIn}</>
-                : <>{mode === 'magic' ? t.auth.sendMagicLink : t.auth.signIn}
+            <button type="submit" disabled={submitting}
+              className="w-full btn-primary py-2.5 justify-center mt-1 disabled:opacity-70">
+              {submitting
+                ? <><div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                    <span>{mode === 'magic' ? t.auth.sendingLink : t.auth.signingIn}</span></>
+                : <><span>{mode === 'magic' ? t.auth.sendMagicLink : t.auth.signIn}</span>
                     <ArrowRight className="w-4 h-4" /></>
               }
             </button>
           </form>
 
-          {/* Divider — translated */}
+          {/* Divider */}
           <div className="flex items-center gap-3 my-5">
             <div className="flex-1 h-px bg-stone-200" />
             <span className="text-stone-400 text-xs font-medium">{t.auth.orDivider}</span>
             <div className="flex-1 h-px bg-stone-200" />
           </div>
 
-          {/* Demo access — fully translated */}
+          {/* Demo access */}
           <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
             <p className="text-amber-700 text-xs font-bold mb-1">{t.auth.demoAccess}</p>
             <p className="text-stone-500 text-xs mb-3">{t.auth.demoDesc}</p>
@@ -194,11 +203,12 @@ export default function LoginPage() {
                 { role: 'client' as const, emoji: '👤', label: t.auth.client, hint: t.auth.demoHints.client },
                 { role: 'admin'  as const, emoji: '🏢', label: t.auth.admin,  hint: t.auth.demoHints.admin  },
               ]).map(item => (
-                <button key={item.role} onClick={() => quickLogin(item.role)}
+                <button key={item.role} type="button"
+                  onClick={() => quickLogin(item.role)}
                   className="flex flex-col items-center py-2.5 px-2 rounded-xl bg-white border border-amber-200 hover:border-amber-400 hover:bg-amber-50 transition-all duration-200 shadow-sm group">
                   <span className="text-base mb-0.5">{item.emoji}</span>
                   <span className="text-[11px] text-stone-700 font-semibold group-hover:text-amber-700 transition-colors">{item.label}</span>
-                  <span className="text-[9px] text-stone-400 mt-0.5 text-center">{item.hint}</span>
+                  <span className="text-[9px] text-stone-400 mt-0.5 text-center leading-tight">{item.hint}</span>
                 </button>
               ))}
             </div>
@@ -213,15 +223,14 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* ── Right / Brand panel ──────────────────────────────────────────────── */}
-      <div className="hidden lg:flex lg:w-[52%] relative flex-col justify-between p-12 overflow-hidden order-1 lg:order-2"
+      {/* Brand panel */}
+      <div className="hidden lg:flex lg:w-[52%] relative flex-col justify-between p-12 overflow-hidden"
         style={{ background: 'linear-gradient(145deg,#0f172a 0%,#1e2a3e 60%,#0f172a 100%)' }}>
         <div className="absolute inset-0 opacity-[0.04]"
           style={{ backgroundImage: 'radial-gradient(circle,#d4a017 1px,transparent 1px)', backgroundSize: '40px 40px' }} />
         <div className="absolute top-1/3 -left-16 w-80 h-80 rounded-full opacity-[0.12]"
           style={{ background: 'radial-gradient(circle,#d4a017,transparent)', filter: 'blur(60px)' }} />
 
-        {/* Logo — no language switcher here since it's now on the form panel */}
         <div className="relative z-10 flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-lg">
             <Scale className="w-5 h-5 text-white" />
