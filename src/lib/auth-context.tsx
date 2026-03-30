@@ -38,50 +38,50 @@ const AuthContext = createContext<AuthContextValue>({
   signOut: async () => {},
 });
 
-// ─── Demo fallback profiles (used when Supabase isn't configured) ──────────
+// ─── Demo profiles — always available regardless of env ────────────────────
+// Any email ending in @demo.com bypasses Supabase entirely.
 const DEMO_PROFILES: Record<string, AuthProfile> = {
   'lawyer@demo.com': {
-    id: 'demo-lawyer-1',
-    email: 'lawyer@demo.com',
-    name: 'Sarah Chen',
-    role: 'lawyer',
-    firm_id: 'firm-demo-1',
-    language: 'en',
+    id: 'demo-lawyer-1', email: 'lawyer@demo.com',
+    name: 'Sarah Chen', role: 'lawyer',
+    firm_id: 'firm-demo-1', language: 'en',
   },
   'client@demo.com': {
-    id: 'demo-client-1',
-    email: 'client@demo.com',
-    name: 'James Harrison',
-    role: 'client',
-    firm_id: null,
-    language: 'en',
+    id: 'demo-client-1', email: 'client@demo.com',
+    name: 'James Harrison', role: 'client',
+    firm_id: null, language: 'en',
   },
   'admin@demo.com': {
-    id: 'demo-admin-1',
-    email: 'admin@demo.com',
-    name: 'Admin User',
-    role: 'firm_admin',
-    firm_id: 'firm-demo-1',
-    language: 'en',
+    id: 'demo-admin-1', email: 'admin@demo.com',
+    name: 'Admin User', role: 'firm_admin',
+    firm_id: 'firm-demo-1', language: 'en',
   },
 };
 
-const IS_DEMO = !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-  process.env.NEXT_PUBLIC_SUPABASE_URL === 'https://placeholder.supabase.co';
+/** Returns a demo profile if the email is a known demo address, null otherwise. */
+function getDemoProfile(email: string): AuthProfile | null {
+  if (DEMO_PROFILES[email]) return DEMO_PROFILES[email];
+  // Also match any @demo.com email → lawyer by default
+  if (email.endsWith('@demo.com')) {
+    return { ...DEMO_PROFILES['lawyer@demo.com'], email, name: email.split('@')[0] };
+  }
+  return null;
+}
+
+const HAS_SUPABASE =
+  !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
+  process.env.NEXT_PUBLIC_SUPABASE_URL !== 'https://placeholder.supabase.co';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [session, setSession]   = useState<Session | null>(null);
-  const [user, setUser]         = useState<User | null>(null);
-  const [profile, setProfile]   = useState<AuthProfile | null>(null);
-  const [loading, setLoading]   = useState(true);
+  const [session, setSession]       = useState<Session | null>(null);
+  const [user, setUser]             = useState<User | null>(null);
+  const [profile, setProfile]       = useState<AuthProfile | null>(null);
+  const [demoProfile, setDemoProfile] = useState<AuthProfile | null>(null);
+  const [loading, setLoading]       = useState(true);
   const supabase = createClient();
 
   const loadProfile = useCallback(async (userId: string, userEmail?: string) => {
-    // Demo mode — derive profile from email
-    if (IS_DEMO && userEmail && DEMO_PROFILES[userEmail]) {
-      setProfile(DEMO_PROFILES[userEmail]);
-      return;
-    }
+    if (!HAS_SUPABASE) { setLoading(false); return; }
 
     const { data } = await supabase
       .from('users')
@@ -90,72 +90,79 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .single();
 
     if (data) setProfile(data as AuthProfile);
+    setLoading(false);
   }, [supabase]);
 
   useEffect(() => {
-    // Get initial session
+    if (!HAS_SUPABASE) { setLoading(false); return; }
+
     supabase.auth.getSession().then(({ data: { session: s } }) => {
       setSession(s);
       setUser(s?.user ?? null);
-      if (s?.user) loadProfile(s.user.id, s.user.email);
+      if (s?.user) loadProfile(s.user.id, s.user.email ?? undefined);
       else setLoading(false);
     });
 
-    // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, s) => {
         setSession(s);
         setUser(s?.user ?? null);
-        if (s?.user) await loadProfile(s.user.id, s.user.email);
-        else setProfile(null);
-        setLoading(false);
+        if (s?.user) await loadProfile(s.user.id, s.user.email ?? undefined);
+        else { setProfile(null); setLoading(false); }
       }
     );
 
     return () => subscription.unsubscribe();
   }, [loadProfile, supabase]);
 
-  // ── DEMO MODE sign-in ──────────────────────────────────────
-  const [demoProfile, setDemoProfile] = useState<AuthProfile | null>(null);
-
+  // ── signIn ─────────────────────────────────────────────────────────────────
   const signIn = useCallback(async (email: string, password: string) => {
-    if (IS_DEMO) {
-      const demo = DEMO_PROFILES[email] ??
-        // Any unknown email in demo → lawyer role
-        { ...DEMO_PROFILES['lawyer@demo.com'], email, name: email.split('@')[0] };
+    // ALWAYS check demo profiles first — works even if Supabase IS configured
+    const demo = getDemoProfile(email);
+    if (demo) {
       setDemoProfile(demo);
       setProfile(demo);
       setLoading(false);
       return { error: null };
     }
 
+    if (!HAS_SUPABASE) {
+      return { error: 'No Supabase configured. Use a @demo.com email to try the demo.' };
+    }
+
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error: error?.message ?? null };
+    if (error) return { error: error.message };
+    return { error: null };
   }, [supabase]);
 
+  // ── signInWithMagicLink ────────────────────────────────────────────────────
   const signInWithMagicLink = useCallback(async (email: string) => {
-    if (IS_DEMO) {
-      const demo = DEMO_PROFILES[email] ?? DEMO_PROFILES['lawyer@demo.com'];
+    const demo = getDemoProfile(email);
+    if (demo) {
       setDemoProfile(demo);
       setProfile(demo);
       setLoading(false);
       return { error: null };
+    }
+
+    if (!HAS_SUPABASE) {
+      return { error: 'No Supabase configured. Use a @demo.com email to try the demo.' };
     }
 
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      options: { emailRedirectTo: `${window.location.origin}/api/auth/callback` },
     });
     return { error: error?.message ?? null };
   }, [supabase]);
 
+  // ── signOut ────────────────────────────────────────────────────────────────
   const signOut = useCallback(async () => {
     setDemoProfile(null);
     setProfile(null);
-    if (!IS_DEMO) await supabase.auth.signOut();
+    if (HAS_SUPABASE) await supabase.auth.signOut();
   }, [supabase]);
 
-  // Use demoProfile OR real profile
   const activeProfile = demoProfile ?? profile;
   const role = activeProfile?.role ?? 'client';
 
@@ -167,7 +174,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isClient:  role === 'client',
       isLawyer:  role === 'lawyer',
       isAdmin:   role === 'firm_admin',
-      loading:   IS_DEMO ? false : loading,
+      loading:   !HAS_SUPABASE ? false : loading,
       signIn, signInWithMagicLink, signOut,
     }}>
       {children}
