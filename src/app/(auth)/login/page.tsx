@@ -25,8 +25,9 @@ function LoginPageInner() {
   const [name,  setName]          = useState(prefillName);
   const [password, setPassword]   = useState('');
   const [showPass, setShowPass]   = useState(false);
-  const [submitting, setSubmitting] = useState(false); // local form spinner only
-  const [mode, setMode]           = useState<'login' | 'magic'>('login');
+  const [submitting, setSubmitting] = useState(false);
+  const [authMode,  setAuthMode]  = useState<'signin' | 'signup'>('signin');
+  const [inputMode, setInputMode] = useState<'login' | 'magic'>('login');
   const [magicSent, setMagicSent] = useState(false);
   const [error, setError]         = useState<string | null>(null);
 
@@ -88,7 +89,7 @@ function LoginPageInner() {
     const map = { lawyer: 'lawyer@demo.com', client: 'client@demo.com', admin: 'admin@demo.com' };
     setEmail(map[role]);
     setPassword('demo1234');
-    setMode('login');
+    setInputMode('login');
     setError(null);
   }
 
@@ -146,9 +147,9 @@ function LoginPageInner() {
           <div className="flex bg-stone-100 rounded-xl p-1 mb-5 border border-stone-200">
             {(['login', 'magic'] as const).map(m => (
               <button key={m} type="button"
-                onClick={() => { setMode(m); setError(null); }}
+                onClick={() => { setInputMode(m); setError(null); }}
                 className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all duration-200 flex items-center justify-center gap-1.5 ${
-                  mode === m
+                  inputMode === m
                     ? 'bg-white shadow-sm text-stone-800 border border-stone-200'
                     : 'text-stone-500 hover:text-stone-700'
                 }`}>
