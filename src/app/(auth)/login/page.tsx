@@ -2,10 +2,11 @@
 
 export const dynamic = 'force-dynamic';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Scale, Mail, Lock, ArrowRight, Eye, EyeOff, Sparkles, CheckCircle, AlertCircle } from 'lucide-react';
+import { Scale, Mail, Lock, ArrowRight, Eye, EyeOff, Sparkles, CheckCircle, AlertCircle, User } from 'lucide-react';
 import { useI18n, LanguageSwitcher } from '@/lib/i18n';
 import { useAuth } from '@/lib/auth-context';
 
@@ -14,7 +15,14 @@ export default function LoginPage() {
   const { t }  = useI18n();
   const { signIn, signInWithMagicLink } = useAuth();
 
-  const [email, setEmail]         = useState('');
+  const searchParams   = useSearchParams();
+  const fromOnboarding = searchParams.get('from') === 'onboarding';
+  const onboardingType = searchParams.get('type') as 'individual' | 'lawfirm' | null;
+  const prefillName    = searchParams.get('name') ?? '';
+  const prefillEmail   = searchParams.get('email') ?? '';
+
+  const [email, setEmail]         = useState(prefillEmail);
+  const [name,  setName]          = useState(prefillName);
   const [password, setPassword]   = useState('');
   const [showPass, setShowPass]   = useState(false);
   const [submitting, setSubmitting] = useState(false); // local form spinner only
@@ -22,16 +30,47 @@ export default function LoginPage() {
   const [magicSent, setMagicSent] = useState(false);
   const [error, setError]         = useState<string | null>(null);
 
+  useEffect(() => {
+    if (fromOnboarding) setAuthMode('signup');
+    try {
+      const raw = sessionStorage.getItem('le_onboarding');
+      if (raw) {
+        const saved = JSON.parse(raw);
+        if (!prefillEmail && saved.email) setEmail(saved.email);
+        if (!prefillName  && saved.fullName) setName(saved.fullName);
+      }
+    } catch {}
+  }, [fromOnboarding, prefillEmail, prefillName]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
 
-    if (mode === 'magic') {
+    // Signup path
+    if (authMode === 'signup') {
+      // For demo mode — treat signup as signIn with the provided email
+      const { error: err } = await signIn(email, password || 'demo1234');
+      if (err) {
+        // Try as magic link if no Supabase
+        const { error: err2 } = await signInWithMagicLink(email);
+        if (err2) { setError(t.auth.errorInvalidCredentials); setSubmitting(false); return; }
+        if (email.endsWith('@demo.com')) {
+          router.push(email.includes('client') ? '/portal/dashboard' : '/dashboard');
+        } else {
+          setMagicSent(true); setSubmitting(false);
+        }
+        return;
+      }
+      router.push(email.includes('client') ? '/portal/dashboard' : '/dashboard');
+      return;
+    }
+
+    // Sign in path
+    if (inputMode === 'magic') {
       const { error: err } = await signInWithMagicLink(email);
       setSubmitting(false);
       if (err) { setError(err); return; }
-      // Demo magic link → navigate immediately
       if (email.endsWith('@demo.com')) {
         router.push(email.includes('client') ? '/portal/dashboard' : '/dashboard');
       } else {
@@ -40,19 +79,9 @@ export default function LoginPage() {
       return;
     }
 
-    // Password login
     const { error: err } = await signIn(email, password);
-    if (err) {
-      setError(t.auth.errorInvalidCredentials);
-      setSubmitting(false);
-      return;
-    }
-
-    // signIn succeeded — navigate based on email role hint
-    // The middleware will enforce the real role-based guard on server side
-    const dest = email.includes('client') ? '/portal/dashboard' : '/dashboard';
-    router.push(dest);
-    // Keep submitting=true until navigation completes (looks intentional)
+    if (err) { setError(t.auth.errorInvalidCredentials); setSubmitting(false); return; }
+    router.push(email.includes('client') ? '/portal/dashboard' : '/dashboard');
   }
 
   function quickLogin(role: 'lawyer' | 'client' | 'admin') {
@@ -139,6 +168,21 @@ export default function LoginPage() {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Name field — only shown for signup */}
+            {authMode === 'signup' && (
+              <div>
+                <label className="block text-xs text-stone-500 mb-1.5 font-semibold uppercase tracking-wide">
+                  Full Name *
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+                  <input type="text" value={name} onChange={e => setName(e.target.value)}
+                    placeholder="Your full name"
+                    className="input-field pl-9" required autoComplete="name" />
+                </div>
+              </div>
+            )}
+
             <div>
               <label className="block text-xs text-stone-500 mb-1.5 font-semibold uppercase tracking-wide">
                 {t.auth.emailLabel}
@@ -151,7 +195,7 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {mode === 'login' && (
+            {(authMode === 'signup' || (authMode === 'signin' && inputMode === 'login')) && (
               <div>
                 <label className="block text-xs text-stone-500 mb-1.5 font-semibold uppercase tracking-wide">
                   {t.auth.passwordLabel}
@@ -181,8 +225,8 @@ export default function LoginPage() {
               className="w-full btn-primary py-2.5 justify-center mt-1 disabled:opacity-70">
               {submitting
                 ? <><div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                    <span>{mode === 'magic' ? t.auth.sendingLink : t.auth.signingIn}</span></>
-                : <><span>{mode === 'magic' ? t.auth.sendMagicLink : t.auth.signIn}</span>
+                    <span>{authMode === 'signup' ? 'Creating account…' : inputMode === 'magic' ? t.auth.sendingLink : t.auth.signingIn}</span></>
+                : <><span>{authMode === 'signup' ? 'Create account' : inputMode === 'magic' ? t.auth.sendMagicLink : t.auth.signIn}</span>
                     <ArrowRight className="w-4 h-4" /></>
               }
             </button>
