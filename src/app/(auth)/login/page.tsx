@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -10,7 +10,7 @@ import { Scale, Mail, Lock, ArrowRight, Eye, EyeOff, Sparkles, CheckCircle, Aler
 import { useI18n, LanguageSwitcher } from '@/lib/i18n';
 import { useAuth } from '@/lib/auth-context';
 
-export default function LoginPage() {
+function LoginPageInner() {
   const router = useRouter();
   const { t }  = useI18n();
   const { signIn, signInWithMagicLink } = useAuth();
@@ -314,5 +314,23 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+// ── Suspense wrapper required by Next.js 14 for useSearchParams ───────────────
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#f5f4f0' }}>
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center">
+            <span className="text-white font-bold text-sm">⚖</span>
+          </div>
+          <div className="w-4 h-4 border-2 border-amber-300 border-t-amber-600 rounded-full animate-spin" />
+        </div>
+      </div>
+    }>
+      <LoginPageInner />
+    </Suspense>
   );
 }
