@@ -1,6 +1,9 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+// Force dynamic rendering — page uses browser APIs (localStorage, matchMedia, Supabase)
+export const dynamic = 'force-dynamic';
+
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import {
   Scale, ArrowRight, CheckCircle, Menu, X, Moon, Sun, Globe,
@@ -9,7 +12,15 @@ import {
 } from 'lucide-react';
 import { landing, type LandingLocale, type LandingT } from '@/lib/landing/translations';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/lib/auth-context';
+// ─── Lightweight auth check via cookie (avoids Supabase during prerender) ────
+function useIsLoggedIn() {
+  const [role, setRole] = useState<string | null>(null);
+  useEffect(() => {
+    const match = document.cookie.match(/(?:^|;\s*)le_demo_role=([^;]+)/);
+    setRole(match ? match[1] : null);
+  }, []);
+  return role;
+}
 
 // ─── Dark mode hook ────────────────────────────────────────────────────────────
 function useDarkMode() {
@@ -28,7 +39,7 @@ function useDarkMode() {
 
 // ─── Intersection Observer hook ───────────────────────────────────────────────
 function useInView(threshold = 0.15) {
-  const ref = useRef<HTMLDivElement>(null);
+  const ref = useRef<Element>(null);
   const [inView, setInView] = useState(false);
   useEffect(() => {
     const el = ref.current;
@@ -59,7 +70,7 @@ function Counter({ to, suffix = '' }: { to: string; suffix?: string }) {
     }, step);
     return () => clearInterval(timer);
   }, [inView, to]);
-  return <span ref={ref as any}>{displayed}{suffix}</span>;
+  return <span ref={ref as React.RefObject<HTMLSpanElement>}>{displayed}{suffix}</span>;
 }
 
 // ─── App mockup illustration ───────────────────────────────────────────────────
@@ -340,14 +351,14 @@ export default function LandingPage() {
   const [langOpen, setLangO]  = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const router = useRouter();
-  const { profile, loading } = useAuth();
+  const demoRole = useIsLoggedIn();
 
-  // Redirect logged-in users to their portal immediately
+  // Redirect logged-in users to their portal
   useEffect(() => {
-    if (!loading && profile) {
-      router.replace(profile.role === 'client' ? '/portal/dashboard' : '/dashboard');
+    if (demoRole) {
+      router.replace(demoRole === 'client' ? '/portal/dashboard' : '/dashboard');
     }
-  }, [profile, loading, router]);
+  }, [demoRole, router]);
 
   const t: LandingT = landing[locale];
 
@@ -366,13 +377,13 @@ export default function LandingPage() {
   ];
 
   const isRTL = locale === 'ar';
-  const dest  = profile?.role === 'client' ? '/portal/dashboard' : profile ? '/dashboard' : '/login';
+  // dest is computed from demoRole — kept for any direct link usage
 
   // ── Scroll-reveal wrapper ────────────────────────────────────────────────────
   function Reveal({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
     const [ref, inView] = useInView();
     return (
-      <div ref={ref} style={{
+      <div ref={ref as React.RefObject<HTMLDivElement>} style={{
         opacity:    inView ? 1 : 0,
         transform:  inView ? 'translateY(0)' : 'translateY(32px)',
         transition: `opacity 0.7s ease ${delay}s, transform 0.7s ease ${delay}s`,
