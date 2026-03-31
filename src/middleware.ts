@@ -2,17 +2,22 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-const PUBLIC_ROUTES = ['/login', '/onboarding', '/auth/callback'];
+// ─── Routes that NEVER require authentication ──────────────────────────────────
+// The root '/' is the landing page — always public.
+const PUBLIC_ROUTES = ['/', '/login', '/onboarding', '/auth/callback'];
 
-// Cookie name for demo-mode sessions (no real Supabase session needed)
+// ─── Routes that are public prefixes (match startsWith) ───────────────────────
+const PUBLIC_PREFIXES = ['/offline'];
+
 const DEMO_COOKIE = 'le_demo_role';
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // ── Always pass through: public, static, API auth routes ──────────────────
+  // ── Always pass through: public routes, static files, API ─────────────────
   if (
-    PUBLIC_ROUTES.some(r => pathname.startsWith(r)) ||
+    PUBLIC_ROUTES.includes(pathname) ||
+    PUBLIC_PREFIXES.some(p => pathname.startsWith(p)) ||
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/api/ai') ||
@@ -22,10 +27,8 @@ export async function middleware(request: NextRequest) {
   }
 
   // ── Demo mode fast-path ────────────────────────────────────────────────────
-  // If a demo role cookie exists, skip Supabase entirely and route by role.
   const demoRole = request.cookies.get(DEMO_COOKIE)?.value;
   if (demoRole) {
-    // Cross-portal guard: clients can't access lawyer routes and vice-versa
     if (demoRole === 'client' && !pathname.startsWith('/portal')) {
       return NextResponse.redirect(new URL('/portal/dashboard', request.url));
     }
@@ -43,7 +46,7 @@ export async function middleware(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? 'placeholder-key',
     {
       cookies: {
-        get(name) { return request.cookies.get(name)?.value; },
+        get(name)         { return request.cookies.get(name)?.value; },
         set(name, value, options) {
           request.cookies.set({ name, value, ...options });
           response = NextResponse.next({ request });
@@ -61,12 +64,13 @@ export async function middleware(request: NextRequest) {
   const { data: { session } } = await supabase.auth.getSession();
 
   if (!session) {
+    // No session → send to login, preserve the intended destination
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('redirectTo', pathname);
     return NextResponse.redirect(loginUrl);
   }
 
-  // Role-based routing for real Supabase users
+  // ── Role-based routing for authenticated Supabase users ───────────────────
   const { data: profile } = await supabase
     .from('users')
     .select('role')
