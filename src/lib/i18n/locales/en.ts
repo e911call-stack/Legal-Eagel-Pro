@@ -189,3 +189,90 @@ const en = {
 
 export default en;
 export type Translations = typeof en;
+
+// NOTE: appended below — re-export handled by spread in consumers
+export const landingEn = {
+  nav: {
+    product: 'Product', features: 'Features', howItWorks: 'How It Works',
+    pricing: 'Pricing', login: 'Sign In', getStarted: 'Get started free',
+  },
+  hero: {
+    badge: 'AI-Powered Legal Accountability',
+    headline1: 'Legal accountability,',
+    headline2: 'redefined.',
+    sub: 'The AI engine that watches every case so nothing slips through the cracks — inactivity, unanswered messages, missed deadlines. Flagged automatically. Resolved proactively.',
+    cta1: 'Start free trial', cta2: 'Watch demo',
+    trustedBy: 'Trusted by law firms in',
+    countries: '12+ countries',
+  },
+  stats: [
+    { value: '98%', label: 'Client satisfaction' },
+    { value: '14×', label: 'Faster risk detection' },
+    { value: '0', label: 'Missed deadlines', sub: 'with AI engine active' },
+    { value: '5', label: 'Languages supported' },
+  ],
+  features: {
+    title: 'Every tool your firm needs.',
+    sub: 'Built for the demands of modern legal practice — transparency, accountability, and AI-driven oversight at every step.',
+    items: [
+      {
+        icon: '🧠', title: 'AI Negligence Engine',
+        desc: 'Daily automated scans across every active case. Flags inactivity after 14 days, unanswered client messages after 72 hours, and missed internal deadlines.',
+        tag: 'Core',
+      },
+      {
+        icon: '📊', title: 'Real-Time Case Timelines',
+        desc: 'Every document upload, message, task update, and deadline change recorded in a chronological audit trail — immutable and transparent.',
+        tag: 'Transparency',
+      },
+      {
+        icon: '🔒', title: 'Role-Based Access',
+        desc: 'Clients see only their cases and shared documents. Lawyers manage their portfolio. Admins oversee the firm. All enforced at the database level with Row Level Security.',
+        tag: 'Security',
+      },
+      {
+        icon: '💬', title: 'Secure Messaging',
+        desc: 'Lawyer-client threads with seen receipts. Internal notes invisible to clients. Reply-status tracking to ensure no message goes unacknowledged.',
+        tag: 'Communication',
+      },
+      {
+        icon: '🌍', title: '5 Languages + RTL',
+        desc: 'English, Arabic (RTL), Spanish, Chinese, and Hindi — with full interface translation and language preference persisted to each user\'s profile.',
+        tag: 'Global',
+      },
+      {
+        icon: '💰', title: 'Billing Transparency',
+        desc: 'Hourly time entries and flat-fee revenue recognition tracked side by side. Budget progress bars visible to both lawyers and clients.',
+        tag: 'Billing',
+      },
+    ],
+  },
+  how: {
+    title: 'How Legal Eagle works',
+    sub: 'From onboarding to AI-powered oversight in under 10 minutes.',
+    steps: [
+      { n: '01', title: 'Set up your firm', desc: 'Onboard in 5 steps — firm details, team size, jurisdiction, language, and AI preferences. No engineers needed.' },
+      { n: '02', title: 'Add cases and clients', desc: 'Create a case, invite your client. The AI engine begins monitoring immediately. An intake event is logged automatically.' },
+      { n: '03', title: 'AI watches everything', desc: 'Every night at midnight the Negligence Detection Engine runs. Risk scores update. Alerts fire. Deadlines are never missed again.' },
+    ],
+  },
+  portal: {
+    title: 'Two portals. One truth.',
+    sub: 'Your lawyers see the full picture. Your clients see exactly what they need to — no more, no less.',
+    lawyer: { title: 'Lawyer Dashboard', desc: 'All cases, risk scores, AI alerts, tasks, billing, and documents in one place.' },
+    client: { title: 'Client Portal', desc: 'Read-only case timeline, shared documents, direct messaging, and billing transparency.' },
+  },
+  cta: {
+    title: 'Your clients deserve better visibility.',
+    sub: 'Start your free 14-day trial. No credit card required. Full access to all features.',
+    btn1: 'Start free trial', btn2: 'Talk to sales',
+    fine: 'Setup takes 5 minutes · Cancel anytime · SOC 2 compliant',
+  },
+  footer: {
+    tagline: 'Legal accountability, redefined.',
+    product: 'Product', features: 'Features', pricing: 'Pricing', changelog: 'Changelog',
+    legal2: 'Legal', privacy: 'Privacy Policy', terms: 'Terms of Service', security: 'Security',
+    company: 'Company', about: 'About', blog: 'Blog', careers: 'Careers',
+    rights: '© 2026 Legal Eagle Technologies. All rights reserved.',
+  },
+};
