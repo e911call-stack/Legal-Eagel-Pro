@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { I18nProvider } from '@/lib/i18n';
+import { ToastProvider } from '@/components/Toast';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { AuthProvider } from '@/lib/auth-context';
 
 export const metadata: Metadata = {
@@ -59,11 +61,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="msapplication-TileImage"          content="/icons/icon-144x144.png" />
       </head>
       <body style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>
-        <AuthProvider>
-          <I18nProvider>
-            {children}
-          </I18nProvider>
-        </AuthProvider>
+        <ErrorBoundary>
+          <AuthProvider>
+            <I18nProvider>
+              <ToastProvider>
+                {children}
+              </ToastProvider>
+            </I18nProvider>
+          </AuthProvider>
+        </ErrorBoundary>
       </body>
     </html>
   );

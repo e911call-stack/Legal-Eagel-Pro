@@ -337,3 +337,15 @@ CREATE INDEX IF NOT EXISTS idx_case_events_case_id ON case_events(case_id, creat
 CREATE INDEX IF NOT EXISTS idx_messages_case_id    ON messages(case_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_ai_alerts_case_id   ON ai_alerts(case_id, resolved, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_tasks_case_id       ON tasks(case_id, status);
+
+-- ============================================================
+-- MIGRATION 002: Expand language support to 5 languages
+-- Run this after 001_initial_schema.sql if already deployed
+-- ============================================================
+
+-- Drop old constraint and add expanded one
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_language_check;
+ALTER TABLE users ADD CONSTRAINT users_language_check
+  CHECK (language IN ('en', 'ar', 'es', 'zh', 'hi'));
+
+-- Also expand the types.ts User interface language type (app-side, no SQL needed)
