@@ -8,12 +8,14 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Scale, Mail, Lock, ArrowRight, Eye, EyeOff, Sparkles, CheckCircle, AlertCircle, User } from 'lucide-react';
 import { useI18n, LanguageSwitcher } from '@/lib/i18n';
+import { useToast } from '@/components/Toast';
 import { useAuth } from '@/lib/auth-context';
 
 function LoginPageInner() {
   const router = useRouter();
   const { t }  = useI18n();
-  const { signIn, signInWithMagicLink } = useAuth();
+  const { signIn, signInWithMagicLink, resetPassword } = useAuth();
+  const { toast } = useToast();
 
   const searchParams   = useSearchParams();
   const fromOnboarding = searchParams.get('from') === 'onboarding';
@@ -30,6 +32,10 @@ function LoginPageInner() {
   const [inputMode, setInputMode] = useState<'login' | 'magic'>('login');
   const [magicSent, setMagicSent] = useState(false);
   const [error, setError]         = useState<string | null>(null);
+  const [forgotMode, setForgotMode] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotSent,  setForgotSent]  = useState(false);
+  const [forgotLoading, setForgotLoading] = useState(false);
 
   useEffect(() => {
     if (fromOnboarding) setAuthMode('signup');
@@ -63,6 +69,15 @@ function LoginPageInner() {
         }
         return;
       }
+      // Fire welcome email (best-effort, don't block navigation)
+      fetch('/api/auth/send-welcome', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          name:        name || email.split('@')[0],
+          accountType: email.includes('client') ? 'individual' : 'lawfirm',
+        }),
+      }).catch(() => {}); // swallow errors — email is best-effort
       router.push(email.includes('client') ? '/portal/dashboard' : '/dashboard');
       return;
     }
@@ -83,6 +98,19 @@ function LoginPageInner() {
     const { error: err } = await signIn(email, password);
     if (err) { setError(t.auth.errorInvalidCredentials); setSubmitting(false); return; }
     router.push(email.includes('client') ? '/portal/dashboard' : '/dashboard');
+  }
+
+
+  async function handleForgotPassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (!forgotEmail.trim()) return;
+    setForgotLoading(true);
+    setError(null);
+    const { error: err } = await resetPassword(forgotEmail.trim());
+    setForgotLoading(false);
+    if (err) { setError(err); return; }
+    setForgotSent(true);
+    toast('Check your email for a password reset link', 'success');
   }
 
   function quickLogin(role: 'lawyer' | 'client' | 'admin') {
@@ -215,9 +243,11 @@ function LoginPageInner() {
                   </button>
                 </div>
                 <div className="mt-1.5 text-right">
-                  <a href="#" className="text-xs text-amber-600 hover:text-amber-700 font-medium transition-colors">
+                  <button type="button"
+                    onClick={() => { setForgotMode(true); setForgotSent(false); setError(null); }}
+                    className="text-xs text-amber-600 hover:text-amber-700 font-medium transition-colors">
                     {t.auth.forgotPassword}
-                  </a>
+                  </button>
                 </div>
               </div>
             )}

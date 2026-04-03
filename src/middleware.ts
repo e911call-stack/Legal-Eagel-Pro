@@ -4,7 +4,7 @@ import type { NextRequest } from 'next/server';
 
 // ─── Routes that NEVER require authentication ──────────────────────────────────
 // The root '/' is the landing page — always public.
-const PUBLIC_ROUTES = ['/', '/login', '/onboarding', '/auth/callback'];
+const PUBLIC_ROUTES = ['/', '/login', '/onboarding', '/auth/callback', '/reset-password'];
 
 // ─── Routes that are public prefixes (match startsWith) ───────────────────────
 const PUBLIC_PREFIXES = ['/offline'];

@@ -27,6 +27,7 @@ interface AuthContextValue {
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signInWithMagicLink: (email: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
+  resetPassword: (email: string) => Promise<{ error: string | null }>;
 }
 
 const AuthContext = createContext<AuthContextValue>({
@@ -36,6 +37,7 @@ const AuthContext = createContext<AuthContextValue>({
   signIn: async () => ({ error: null }),
   signInWithMagicLink: async () => ({ error: null }),
   signOut: async () => {},
+  resetPassword: async () => ({ error: null }),
 });
 
 // ─── Demo profiles ────────────────────────────────────────────────────────────
@@ -160,6 +162,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error: error?.message ?? null };
   }, [supabase]);
 
+  // ── resetPassword ───────────────────────────────────────────────────────────
+  const resetPassword = useCallback(async (email: string) => {
+    // Demo mode — always succeeds visually
+    if (!HAS_SUPABASE || email.endsWith('@demo.com')) {
+      return { error: null };
+    }
+
+    // Call our own API route which handles branded email + admin link generation
+    try {
+      const res = await fetch('/api/auth/reset-password', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ email }),
+      });
+      // Always returns 200 to avoid user enumeration — check body for demo flag
+      const data = await res.json();
+      if (!data.ok) return { error: 'Unable to process request — please try again' };
+      return { error: null };
+    } catch {
+      return { error: 'Network error — please check your connection' };
+    }
+  }, []);
+
   // ── signOut ──────────────────────────────────────────────────────────────────
   const signOut = useCallback(async () => {
     clearDemoCookie();
@@ -178,7 +203,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isLawyer: role === 'lawyer',
       isAdmin:  role === 'firm_admin',
       loading:  false, // never block the UI — middleware handles auth
-      signIn, signInWithMagicLink, signOut,
+      signIn, signInWithMagicLink, signOut, resetPassword,
     }}>
       {children}
     </AuthContext.Provider>
