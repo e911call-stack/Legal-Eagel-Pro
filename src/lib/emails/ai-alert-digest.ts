@@ -1,4 +1,4 @@
-import { sendEmail, type SendEmailResult } from '../email-client';
+import { sendEmail, type SendEmailResult } from './email-client';
 import {
   BRAND, emailBase, emailH1, emailP, emailButton,
   emailDivider, emailCallout, toPlainText,

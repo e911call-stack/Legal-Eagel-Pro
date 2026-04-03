@@ -1,4 +1,4 @@
-import { sendEmail, FROM_ADDRESS, type SendEmailResult } from '../email-client';
+import { sendEmail, FROM_ADDRESS, type SendEmailResult } from './email-client';
 import {
   BRAND, emailBase, emailH1, emailP, emailButton,
   emailDivider, emailCallout, emailKV, toPlainText,
@@ -20,7 +20,7 @@ export async function sendWelcomeEmail(data: WelcomeEmailData): Promise<SendEmai
   // ─── Branch: Individual (client) ─────────────────────────────────────────
   const individualBody = `
     ${emailH1(`${greeting} — your case monitor is ready.`)}
-    ${emailP('Legal Eagle is now watching over your legal matter so you never have to wonder what's happening with your case again.')}
+    ${emailP("Legal Eagle is now watching over your legal matter so you never have to wonder what's happening with your case again.")}
 
     ${emailCallout(
       'You have full visibility into every document, message, deadline, and task in your case — in real time.',
@@ -72,7 +72,7 @@ export async function sendWelcomeEmail(data: WelcomeEmailData): Promise<SendEmai
     ${emailButton('Go to my dashboard', `${BRAND.url}/dashboard`)}
 
     ${emailDivider()}
-    ${emailP('Questions? Reply to this email — we read every one.', { muted: true, small: true })}
+    ${emailP("Questions? Reply to this email — we read every one.", { muted: true, small: true })}
   `;
 
   const body = isIndividual ? individualBody : firmBody;
